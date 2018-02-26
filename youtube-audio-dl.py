@@ -17,17 +17,16 @@ def get_audio(youTubeURL, dl_dir):
     """ Use pafy to download m4a audio stream """
     audio = pafy.new(youTubeURL)
     audio_stream = audio.getbestaudio(preftype="m4a", ftypestrict=True)
-    pattern = re.compile('[\W_]+', re.UNICODE)
-    filename = audio.title.encode('utf-8').replace(" ", "_").strip('\n') # remove whitespace & newlines
-    filename = pattern.sub('_', filename) # remove non-alphanumeric chars - these cause problems with locating the file
+    filename = re.sub("[^a-zA-Z0-9_ ]", "", audio.title)
+    filename = re.sub("[ ]", "_", filename)
     print('Downloading ', filename)
     filepath = os.path.join(dl_dir, filename + ".m4a")
     audio_output = audio_stream.download(filepath=filepath)
-    return filename
+    return filepath, filename
 
 def convert_audio(m4a_audio, dl_dir):
     """ Convert m4a audio file to mp3 using ffmpeg """
-     ########### FIX THIS ###########
+    ########### FIX THIS ###########
     ffmpeg_call = """ffmpeg -i \"%s/%s.m4a\" \"%s/%s.mp3\"""" %(dl_dir, m4aAudio, dl_dir, m4aAudio)
     subprocess.call(ffmpeg_call, shell=True)
     os.remove(os.path.join(dl_dir, m4aAudio + ".m4a"))
@@ -39,6 +38,10 @@ def normalize_audio(audio, dl_dir):
     print("Normalizing audio stream. Wait...\n")
     subprocess.call(ffmpeg_normalize_call, shell=True)
     os.remove(m4a_path)
+
+def limit_and_convert_audio(filepath, filename):
+    ffmpeg_call = "ffmpeg -i {0} -filter loudnorm=I=-5.0:linear=false {1}_normalized.mp3".format(filepath, filename)
+    subprocess.call(ffmpeg_call, shell=True)
 
 def normalize_audio_manual(mp3_audio, dl_dir):
     """ *Unused function*
@@ -63,7 +66,9 @@ def main(filename, dl_dir):
         # iterate through each URL in the file
         num_videos = 0
         for youTubeURL in youTubeURLs.read().split():
-            normalize_audio(get_audio(youTubeURL, dl_dir), dl_dir) # peak normalize the stream (lectures tend to be quiet)
+            audio = get_audio(youTubeURL, dl_dir)
+            #normalize_audio(audio) # peak normalize the stream (lectures tend to be quiet)
+            limit_and_convert_audio(audio[0], audio[1])
             num_videos += 1
         print("Donwloaded and converted %d video(s)" %(num_videos))
 
